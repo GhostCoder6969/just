@@ -44,14 +44,7 @@ impl Search {
         Self::find_in_directory(config, &config.invocation_directory)
       }
       SearchConfig::FromSearchDirectory { search_directory } => {
-        let search_directory = Self::clean(config, search_directory);
-        let justfile = Self::justfile(config, &search_directory)?;
-        let working_directory = Self::working_directory_from_justfile(&justfile)?;
-        Ok(Self {
-          justfile,
-          tempdir: None,
-          working_directory,
-        })
+        Self::search_directory(config, search_directory)
       }
       SearchConfig::FromStandardInput { working_directory } => {
         let source = io::read_to_string(io::stdin()).context(search_error::StdinIo)?;
@@ -183,6 +176,21 @@ impl Search {
     let justfile = Self::justfile(config, starting_dir)?;
     let working_directory = Self::working_directory_from_justfile(&justfile)?;
     Self::with_justfile(config, justfile, working_directory)
+  }
+
+  /// Find justfile in an explicit search directory, as in `just foo/recipe`
+  pub(crate) fn search_directory(
+    config: &Config,
+    search_directory: &Utf8Path,
+  ) -> SearchResult<Self> {
+    let search_directory = Self::clean(config, search_directory);
+    let justfile = Self::justfile(config, &search_directory)?;
+    let working_directory = Self::working_directory_from_justfile(&justfile)?;
+    Ok(Self {
+      justfile,
+      tempdir: None,
+      working_directory,
+    })
   }
 
   /// Get working directory and justfile path for newly-initialized justfile

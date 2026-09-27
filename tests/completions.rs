@@ -552,3 +552,51 @@ fn clean_aliases() {
     .stdout_regex("bar\nb\nf\nfoo\nbar\nb\n.\nfoo.just\njustfile\n--.*")
     .success();
 }
+
+#[test]
+fn search_directory_recipes() {
+  Test::new()
+    .justfile(
+      "
+        global_recipe:
+      ",
+    )
+    .write("app/justfile", "recipe_1:\n")
+    .write("db/justfile", "recipe_2:\n")
+    .shell(false)
+    .env("JUST_COMPLETE", "fish")
+    .args(complete_args(&["app/"]))
+    .stdout("app/recipe_1\napp/justfile\n")
+    .success();
+}
+
+#[test]
+fn search_directory_recipe_prefix_filter() {
+  Test::new()
+    .justfile(
+      "
+        global_recipe:
+      ",
+    )
+    .write("app/justfile", "recipe_1:\nrecipe_2:\n")
+    .shell(false)
+    .env("JUST_COMPLETE", "fish")
+    .args(complete_args(&["app/recipe_1"]))
+    .stdout("app/recipe_1\n")
+    .success();
+}
+
+#[test]
+fn search_directory_missing() {
+  Test::new()
+    .justfile(
+      "
+        global_recipe:
+      ",
+    )
+    .shell(false)
+    .env("JUST_COMPLETE", "fish")
+    .args(complete_args(&["nope/"]))
+    .stdout("")
+    .success();
+}

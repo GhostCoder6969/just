@@ -124,6 +124,50 @@ impl<'run, 'src> Completer<'run, 'src> {
     candidates
   }
 
+  /// Complete `directory/recipe` invocations, where a `/` selects the justfile
+  /// to complete from, mirroring search-directory invocation.
+  fn candidate_recipes_in_search_directory(&self, loader: &Loader) -> Vec<CompletionCandidate> {
+    let Some((directory, prefix)) = self.current.rsplit_once('/') else {
+      return Vec::new();
+    };
+
+    if !self.config.invocation_directory.join(directory).is_dir() {
+      return Vec::new();
+    }
+
+    let Ok(search) = Search::search_directory(&self.config, &Utf8PathBuf::from(directory)) else {
+      return Vec::new();
+    };
+
+    let Ok(compilation) = Compiler::compile(&self.config, loader, &search.justfile) else {
+      return Vec::new();
+    };
+
+    let mut candidates = Vec::new();
+
+    for recipe in compilation.justfile.public_recipes(&self.config) {
+      if recipe.name().starts_with(prefix) {
+        candidates.push(
+          CompletionCandidate::new(format!("{directory}/{}", recipe.name()))
+            .help(recipe.doc.as_ref().map(Into::into)),
+        );
+      }
+    }
+
+    if self.config.complete_aliases {
+      for alias in compilation.justfile.recipe_aliases.values() {
+        if alias.is_public() && alias.name.lexeme().starts_with(prefix) {
+          candidates.push(
+            CompletionCandidate::new(format!("{directory}/{}", alias.name.lexeme()))
+              .help(alias.target.doc.as_ref().map(Into::into)),
+          );
+        }
+      }
+    }
+
+    candidates
+  }
+
   pub(crate) fn complete_argument(current: &OsStr) -> Vec<CompletionCandidate> {
     let loader = Loader::new();
 
@@ -132,6 +176,8 @@ impl<'run, 'src> Completer<'run, 'src> {
     };
 
     let mut candidates = completer.candidate_recipes();
+
+    candidates.extend(completer.candidate_recipes_in_search_directory(&loader));
 
     for (name, binding) in &completer.justfile.assignments {
       if !binding.private && name.starts_with(completer.current) {
